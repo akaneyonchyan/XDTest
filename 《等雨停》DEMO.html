@@ -422,6 +422,10 @@
       transform: translate(-50%, -50%) scale(.82);
     }
 
+    .interaction-point.appearing {
+      transition-duration: 2000ms;
+    }
+
     .interaction-point::before {
       content: "";
       position: absolute;
@@ -491,8 +495,8 @@
     }
 
     .bubble.role {
-      left: 31%;
-      top: 39%;
+      left: 29%;
+      top: 31%;
     }
 
     .bubble.self {
@@ -877,6 +881,7 @@
       audioEnabled: false,
       lastClickAt: {},
       hiddenPoints: {},
+      appearingPoints: {},
       visiblePoints: new Set(INTERACTION_CONFIG.initialVisible),
     };
 
@@ -1128,6 +1133,7 @@
       document.querySelectorAll(".interaction-point").forEach((point) => {
         const id = point.dataset.action;
         const isPermanentlyHidden = id === "sitArea" && state.postureState === "sitting";
+        point.classList.toggle("appearing", Boolean(state.appearingPoints[id]));
         point.classList.toggle(
           "hidden",
           isPermanentlyHidden || Boolean(state.hiddenPoints[id]) || !state.visiblePoints.has(id)
@@ -1164,6 +1170,12 @@
       if (!candidates.length) return;
       const next = candidates[Math.floor(Math.random() * candidates.length)];
       state.visiblePoints.add(next);
+      state.appearingPoints[next] = true;
+      setTimeout(() => {
+        delete state.appearingPoints[next];
+        render();
+      }, 2000);
+      render();
     }
 
     function replenishVisiblePoints(exclude = []) {
@@ -1254,18 +1266,23 @@
       return true;
     }
 
+    function schedulePointRefresh(exclude = []) {
+      setTimeout(() => {
+        if (state.uiCleared || state.weatherStage === "sunny") return;
+        if (getVisiblePointCount() < INTERACTION_CONFIG.maxVisible) {
+          revealOnePoint(exclude);
+        }
+      }, 5000);
+    }
+
     function temporarilyHidePoint(id) {
       state.visiblePoints.delete(id);
-      if (id === "sitArea") {
-        replenishVisiblePoints([id]);
-        return;
-      }
-      state.hiddenPoints[id] = true;
-      replenishVisiblePoints([id]);
+      if (id !== "sitArea") state.hiddenPoints[id] = true;
+      schedulePointRefresh([id]);
       render();
       setTimeout(() => {
+        if (id === "sitArea") return;
         state.hiddenPoints[id] = false;
-        replenishVisiblePoints();
         render();
       }, INTERACTION_CONFIG.reuseDelay);
     }
