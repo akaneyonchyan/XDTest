@@ -1,0 +1,8 @@
+.DS_Store
+video_bg_original/
+video_bg_mobile/
+tools_py/
+bin/
+Frameworks/
+ffmpeg-local
+*.zip
