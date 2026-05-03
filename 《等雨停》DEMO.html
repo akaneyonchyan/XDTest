@@ -164,14 +164,23 @@
       opacity: 1;
     }
 
-    .entry-gate {
+    .entry-copy {
       position: absolute;
       left: 50%;
       top: 50%;
       z-index: 6;
+      display: grid;
+      justify-items: center;
+      gap: 18px;
+      transform: translate(-50%, -50%);
+      opacity: 1;
+      transition: opacity 500ms ease, transform 500ms ease;
+      pointer-events: none;
+    }
+
+    .entry-gate {
       width: 112px;
       height: 44px;
-      transform: translate(-50%, -50%);
       border: 1px solid rgba(215, 227, 255, .48);
       border-radius: 8px;
       background: rgba(18, 27, 43, .56);
@@ -181,16 +190,26 @@
       font-size: 15px;
       font-weight: 650;
       cursor: pointer;
-      opacity: 1;
+      pointer-events: auto;
       transition: opacity 500ms ease, transform 500ms ease, border-color 220ms ease;
     }
 
     .entry-gate:hover {
       border-color: rgba(230, 238, 255, .78);
-      transform: translate(-50%, -50%) scale(1.02);
+      transform: scale(1.02);
     }
 
-    .stage.entered .entry-gate {
+    .entry-subtitle {
+      width: max-content;
+      max-width: min(560px, 78vw);
+      color: rgba(213, 222, 238, .78);
+      font-size: 15px;
+      line-height: 1.7;
+      text-align: center;
+      text-shadow: 0 0 18px rgba(143, 180, 255, .18);
+    }
+
+    .stage.entered .entry-copy {
       opacity: 0;
       pointer-events: none;
       transform: translate(-50%, -50%) scale(.96);
@@ -639,7 +658,10 @@
   <main class="stage" aria-label="等雨停互动 Demo">
     <video class="bg active" id="bgA" muted playsinline preload="auto"></video>
     <video class="bg" id="bgB" muted playsinline preload="auto"></video>
-    <button class="entry-gate" id="entryGate" type="button" aria-label="进入互动 Demo">进入</button>
+    <div class="entry-copy">
+      <button class="entry-gate" id="entryGate" type="button" aria-label="等雨停">等雨停</button>
+      <div class="entry-subtitle">等待晴天的方式有很多，不要着急，风雨总会结束……</div>
+    </div>
 
     <div class="ui">
       <section class="weather-progress" aria-label="天气预测">
