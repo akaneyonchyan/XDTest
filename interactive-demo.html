@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>等雨停互动 Demo</title>
+  <style>
+    :root {
+      --ink: #f3f7ff;
+      --soft: #d5deee;
+      --muted: #aeb7c8;
+      --stroke: rgba(255, 255, 255, .16);
+      --blue: #8fb4ff;
+      --blue-bright: #dce7ff;
+      --green: #78dfa0;
+      --glass-bg: rgba(18, 27, 43, .58);
+      --glass-border: rgba(255, 255, 255, .16);
+      --glass-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #08101a;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .stage {
+      position: relative;
+      width: min(100vw, 1536px);
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background: #08101a;
+      box-shadow: 0 24px 90px rgba(0, 0, 0, .54);
+    }
+
+    .bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 3000ms ease;
+      z-index: 0;
+    }
+
+    .bg.active { opacity: 1; }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(4, 7, 12, .45) 0 14%, transparent 28% 74%, rgba(4, 7, 12, .48) 88% 100%),
+        linear-gradient(180deg, rgba(5, 12, 22, .24), transparent 30%, transparent 68%, rgba(3, 6, 11, .52));
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 800ms ease;
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      background: #02060c;
+      opacity: 1;
+      pointer-events: none;
+      transition: opacity 1800ms ease;
+    }
+
+    .stage.entered::after {
+      opacity: 0;
+    }
+
+    .stage.clear::before {
+      opacity: 0;
+    }
+
+    .ui {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1200ms ease;
+    }
+
+    .stage.entered .ui {
+      opacity: 1;
+    }
+
+    .entry-gate {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 6;
+      width: 112px;
+      height: 44px;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(215, 227, 255, .48);
+      border-radius: 8px;
+      background: rgba(18, 27, 43, .56);
+      box-shadow: 0 0 28px rgba(143, 180, 255, .18), inset 0 0 18px rgba(143, 180, 255, .08);
+      color: var(--ink);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 650;
+      cursor: pointer;
+      opacity: 1;
+      backdrop-filter: blur(14px);
+      transition: opacity 500ms ease, transform 500ms ease, border-color 220ms ease;
+    }
+
+    .entry-gate:hover {
+      border-color: rgba(230, 238, 255, .78);
+      transform: translate(-50%, -50%) scale(1.02);
+    }
+
+    .stage.entered .entry-gate {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(.96);
+    }
+
+    .stage.clear .ui {
+      opacity: 0;
+    }
+
+    .stage.clear .ui * {
+      pointer-events: none !important;
+    }
+
+    .weather-progress {
+      position: absolute;
+      left: 3.4%;
+      top: 3%;
+      width: 32.2%;
+      min-width: 372px;
+      height: 140px;
+      padding: 16px 28px 12px;
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      background: var(--glass-bg);
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: blur(14px);
+      overflow: visible;
+    }
+
+    .weather-title {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .weather-track {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: start;
+      gap: 14px;
+    }
+
+    .connector {
+      position: absolute;
+      top: 22px;
+      height: 2.5px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.30);
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .connector::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: calc(var(--fill, 0) * 1%);
+      border-radius: inherit;
+      background: linear-gradient(90deg, #e4ecff, #8da7ff);
+      box-shadow: 0 0 5px rgba(116, 136, 255, .72), 0 0 10px rgba(116, 136, 255, .34);
+      transition: width 400ms ease;
+    }
+
+    .connector.c1,
+    .connector.c2,
+    .connector.c3 { width: calc(25% - 32px); }
+
+    .connector.c1 { left: calc(12.5% + 16px); }
+    .connector.c2 { left: calc(37.5% + 16px); }
+    .connector.c3 { left: calc(62.5% + 16px); }
+
+    .weather-step {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+      color: rgba(255,255,255,.62);
+      font-size: 13px;
+      z-index: 1;
+      transition: color 300ms ease, text-shadow 300ms ease;
+    }
+
+    .weather-step.visited,
+    .weather-step.active {
+      color: var(--blue-bright);
+      font-weight: 650;
+      text-shadow: 0 0 5px rgba(116, 136, 255, .78), 0 0 9px rgba(116, 136, 255, .38);
+    }
+
+    .weather-icon {
+      position: relative;
+      width: 48px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+    }
+
+    .weather-step.visited .weather-icon::before,
+    .weather-step.active .weather-icon::before {
+      content: "";
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(116, 136, 255, .24), rgba(116, 136, 255, .10) 42%, transparent 68%);
+      filter: blur(3px);
+      z-index: -1;
+    }
+
+    .weather-icon svg {
+      width: 39px;
+      height: 39px;
+      filter: drop-shadow(0 0 8px rgba(143,180,255,.28));
+    }
+
+    .weather-step.visited svg,
+    .weather-step.active svg {
+      filter:
+        drop-shadow(0 0 3px rgba(230, 238, 255, .82))
+        drop-shadow(0 0 8px rgba(116, 136, 255, .70))
+        drop-shadow(0 0 13px rgba(116, 136, 255, .36));
+    }
+
+    .weather-step.visited:not(.active) {
+      color: rgba(220, 231, 255, .78);
+      text-shadow: 0 0 5px rgba(116, 136, 255, .36);
+    }
+
+    .weather-desc {
+      margin-top: 5px;
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toast {
+      position: absolute;
+      left: 0;
+      top: calc(100% + 10px);
+      width: 100%;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: blur(14px);
+      color: #f1f6ff;
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+
+    .toast .message {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .toast .boost {
+      margin-left: auto;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .toast .time {
+      margin-left: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .interaction-point {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      pointer-events: auto;
+      cursor: pointer;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      opacity: 1;
+      transition: opacity 260ms ease, transform 260ms ease;
+    }
+
+    .interaction-point.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(.82);
+    }
+
+    .interaction-point::before {
+      content: "";
+      position: absolute;
+      inset: -13px;
+      border-radius: inherit;
+      background: rgba(134, 169, 255, .14);
+      filter: blur(8px);
+      animation: breathe 2s ease-in-out infinite;
+    }
+
+    .interaction-point::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 1.5px solid rgba(187, 208, 255, .78);
+      box-shadow: 0 0 18px rgba(143, 180, 255, .52), inset 0 0 14px rgba(143, 180, 255, .26);
+      animation: ring 2s ease-in-out infinite;
+    }
+
+    .interaction-point:hover::after {
+      border-color: rgba(225, 236, 255, .95);
+      box-shadow: 0 0 22px rgba(143, 180, 255, .75), inset 0 0 18px rgba(143, 180, 255, .36);
+    }
+
+    .interaction-point .dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: #eef4ff;
+      box-shadow: 0 0 14px rgba(143,180,255,.95);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+
+    .wind { left: 51.3%; top: 13.7%; }
+    .character-point { left: 33.6%; top: 55.2%; }
+    .photo { left: 6.6%; top: 89.6%; }
+    .tea { left: 52.7%; top: 79.5%; }
+    .sit-area { left: 72.4%; top: 78.4%; }
+    .lamp { left: 9.4%; top: 57.5%; }
+    .flower { left: 76.3%; top: 54.1%; }
+    .road { left: 53.4%; top: 59.3%; }
+
+    .bubble {
+      position: absolute;
+      max-width: 280px;
+      padding: 10px 13px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 8px;
+      background: rgba(18, 27, 43, .62);
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: blur(14px);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.55;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .bubble.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .bubble.role {
+      left: 31%;
+      top: 39%;
+    }
+
+    .bubble.self {
+      left: 72%;
+      top: 41%;
+    }
+
+    .chat {
+      position: absolute;
+      left: 50%;
+      bottom: 5%;
+      width: min(354px, 31vw);
+      min-width: 316px;
+      transform: translateX(-50%);
+      pointer-events: auto;
+      opacity: 1;
+      transition: opacity 260ms ease, transform 260ms ease;
+    }
+
+    .chat.locked,
+    .chat.replying {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(8px);
+    }
+
+    .input-row {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      padding: 0 13px 0 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(18, 27, 43, .34);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .input-row input {
+      min-width: 0;
+      flex: 1;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .input-row input::placeholder { color: rgba(213,222,238,.68); }
+    .send {
+      margin-left: 8px;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      background: transparent;
+      color: #d7e3ff;
+      cursor: pointer;
+    }
+
+    .send svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      filter: drop-shadow(0 0 8px rgba(215, 227, 255, .18));
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: .35; transform: scale(.9); }
+      50% { opacity: .95; transform: scale(1.05); }
+    }
+
+    @keyframes ring {
+      0%, 100% { opacity: .55; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: .55; transform: translate(-50%, -50%) scale(.86); }
+      50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    }
+
+    @media (max-width: 900px) {
+      .weather-progress {
+        min-width: 0;
+        width: 54%;
+      }
+      .weather-desc,
+      .toast .time {
+        display: none;
+      }
+      .chat {
+        min-width: 0;
+        width: 50vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="等雨停互动 Demo">
+    <video class="bg active" id="bgA" muted playsinline preload="auto"></video>
+    <video class="bg" id="bgB" muted playsinline preload="auto"></video>
+    <button class="entry-gate" id="entryGate" type="button" aria-label="进入互动 Demo">进入</button>
+
+    <div class="ui">
+      <section class="weather-progress" aria-label="天气预测">
+        <h2 class="weather-title">天气预测</h2>
+        <div class="weather-track">
+          <div class="connector c1"></div>
+          <div class="connector c2"></div>
+          <div class="connector c3"></div>
+          <div class="weather-step" data-stage="thunder">
+            <div class="weather-icon">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path d="M16 38h31c6 0 10-4 10-9s-4-9-9-9c-2-8-9-13-17-11-6 1-10 5-12 10-7 0-12 4-12 10s4 9 9 9Z" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                <path d="M31 39 24 54h9l-4 9 14-18h-9l5-6h-8Z" fill="#8fb4ff"/>
+              </svg>
+            </div>
+            <span>雷雨中</span>
+          </div>
+          <div class="weather-step" data-stage="lightRain">
+            <div class="weather-icon">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path d="M16 38h31c6 0 10-4 10-9s-4-9-9-9c-2-8-9-13-17-11-6 1-10 5-12 10-7 0-12 4-12 10s4 9 9 9Z" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                <path d="M22 46l-4 8M34 46l-4 8M46 46l-4 8" stroke="#bfd9ff" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span>小雨</span>
+          </div>
+          <div class="weather-step" data-stage="cloudy">
+            <div class="weather-icon">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path d="M15 42h34c6 0 10-4 10-9s-4-9-9-9c-2-8-9-13-17-11-6 1-10 5-12 10-7 0-12 4-12 10s4 9 6 9Z" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span>阴天</span>
+          </div>
+          <div class="weather-step" data-stage="sunny">
+            <div class="weather-icon">
+              <svg viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="10" stroke="currentColor" stroke-width="4"/>
+                <path d="M32 6v10M32 48v10M6 32h10M48 32h10M13 13l7 7M44 44l7 7M51 13l-7 7M20 44l-7 7" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span>晴天</span>
+          </div>
+        </div>
+        <div class="weather-desc" id="weatherDesc">雨势：雷雨交加，天空仍很低，但雨声正在变轻。</div>
+
+        <div class="toast" id="toast">
+          <svg viewBox="0 0 64 64" fill="none">
+            <path d="M16 38h31c6 0 10-4 10-9s-4-9-9-9c-2-8-9-13-17-11-6 1-10 5-12 10-7 0-12 4-12 10s4 9 9 9Z" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            <path d="M22 46l-4 8M34 46l-4 8" stroke="#bfd9ff" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <span class="message" id="toastMessage">雨声好像轻了一点。</span>
+          <span class="boost" id="toastBoost">放晴值 +1</span>
+          <span class="time">2s后消失</span>
+        </div>
+      </section>
+
+      <button class="interaction-point wind" data-action="windBell" aria-label="风铃互动点"><span class="dot"></span></button>
+      <button class="interaction-point character-point" data-action="character" aria-label="角色互动点"><span class="dot"></span></button>
+      <button class="interaction-point photo" data-action="photo" aria-label="旧相册互动点"><span class="dot"></span></button>
+      <button class="interaction-point tea" data-action="tea" aria-label="茶杯互动点"><span class="dot"></span></button>
+      <button class="interaction-point sit-area" data-action="sitArea" aria-label="坐下互动点"><span class="dot"></span></button>
+      <button class="interaction-point lamp" data-action="lamp" aria-label="灯互动点"><span class="dot"></span></button>
+      <button class="interaction-point flower" data-action="hydrangea" aria-label="紫阳花互动点"><span class="dot"></span></button>
+      <button class="interaction-point road" data-action="road" aria-label="石板路互动点"><span class="dot"></span></button>
+
+      <div class="bubble role" id="roleBubble"></div>
+      <div class="bubble self" id="selfBubble"></div>
+
+      <section class="chat locked" id="chat" aria-label="聊天输入框">
+        <div class="input-row">
+          <input id="chatInput" placeholder="如果想说，写一句就好..." aria-label="聊天输入">
+          <button class="send" id="sendBtn" aria-label="发送">
+            <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <path d="M27.5 5.2 4.8 14.7c-1.4.6-1.3 2.6.2 3l8.1 2.1 2.1 8.1c.4 1.5 2.4 1.6 3 .2l9.5-22.7c.5-1.3-.8-2.6-2.2-2.2Z" stroke-width="2.4" stroke-linejoin="round"/>
+              <path d="M13.3 19.6 20.7 12" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const DEMO_SPEED = 1;
+    const STAGES = [
+      { id: "thunder", min: 0, name: "雷雨中", desc: "雨势：雷雨交加，天空仍很低，但雨声正在变轻。", enter: "雨声好像轻了一点。" },
+      { id: "lightRain", min: 60, name: "小雨", desc: "雨势：大雨转小雨，风声开始变得规律。", enter: "大雨转小了。" },
+      { id: "cloudy", min: 180, name: "阴天", desc: "雨势：雨停了，只剩下水滴声和偶尔的风。", enter: "雨停了，只剩下水滴声。" },
+      { id: "sunny", min: 300, name: "晴天", desc: "雨势：云层散开，光落进了房间。", enter: "天晴了。" },
+    ];
+
+    const BG = {
+      thunder: {
+        standing: "video_bg/雷雨（未坐下）.mp4",
+        sitting: "video_bg/雷雨（坐下后）.mp4",
+      },
+      lightRain: {
+        standing: "video_bg/小雨（未坐下）.mp4",
+        sitting: "video_bg/小雨（坐下后）.mp4",
+      },
+      cloudy: {
+        standing: "video_bg/阴天（未坐下）.mp4",
+        sitting: "video_bg/阴天（坐下后）.mp4",
+      },
+      sunny: {
+        standing: "video_bg/晴天（未坐下）.mp4",
+        sitting: "video_bg/晴天（坐下后）.mp4",
+      },
+    };
+
+    const ROAD_BG = {
+      exitAnimation: "video_bg/点击路面后动画.mp4",
+      sunnyLoop: "video_bg/晴天（点路面后循环）.mp4",
+    };
+
+    const INTERACTION_CONFIG = {
+      maxVisible: 3,
+      reuseDelay: 30000,
+      initialVisible: ["character", "tea", "sitArea"],
+    };
+
+    const TEXT_CONFIG = {
+      ui: {
+        emptyInputHint: "不用完整，几个字也可以。",
+        cooldownToast: "别心急。",
+        chatSendToast: "雨势正在慢慢缓下来。",
+        chatSendBoost: "放晴值 +10",
+      },
+      ending: {
+        sunnyRoleLine: "看，天晴了，没有不会结束的风雨。",
+      },
+      actions: {
+        sitArea: {
+          repeatToast: "坐着就好，雨会慢慢停的。",
+          roleLine: "如果不想说话，就一起听雨吧。",
+          toast: "雨声好像轻了一点。",
+          boost: "",
+        },
+        character: {
+          withTeaRoleLine: "如果想说些什么……我听着。",
+          withTeaToast: "雨势正在慢慢缓下来。",
+          withTeaBoost: "放晴值 +1",
+          sittingRoleLine: "我倒了点热茶。",
+          sittingToast: "屋里的温度暖了一些。",
+          sittingBoost: "放晴值 +1",
+          defaultRoleLine: "旁边的位置，还空着。",
+          defaultToast: "雨声好像轻了一点。",
+          defaultBoost: "放晴值 +1",
+        },
+        tea: {
+          needSitRoleLine: "一起坐一会儿吧，茶还热着。",
+          needSitToast: "热气腾腾的茶。",
+          repeatRoleLine: "茶还温着。",
+          repeatToast: "杯子碰出很轻的一声。",
+          firstRoleLine: "茶是安神的，不会让你继续失眠。",
+          firstToast: "雨势正在慢慢缓下来。",
+          firstBoost: "放晴值 +5",
+        },
+        windBell: {
+          roleLine: "风铃的声音很好听，像雨中的点缀。",
+          toast: "风铃声盖过了一点风声。",
+          boost: "放晴值 +1",
+        },
+        lamp: {
+          repeatToast: "灯光已经柔和了。",
+          roleLine: "我把灯调暗了，不会晃眼。",
+          toast: "房间安静了一点。",
+          boost: "放晴值 +1",
+        },
+        photo: {
+          closeRoleLine: "你好像不太愿意提那张照片……",
+          closeToast: "那份沉默被好好放下了。",
+          closeBoost: "放晴值 +5",
+          repeatToast: "照片已经被夹回书里了。",
+          openRoleLine: "那张照片，我夹在书里了。你没有说，我就没有问。",
+          openToast: "几天前发给他的合照被夹在书里。",
+          openBoost: "放晴值 +1",
+        },
+        hydrangea: {
+          roleLine: "紫阳花喜欢雨天，你呢？",
+          toast: "雨里也有一点亮色。",
+          boost: "放晴值 +1",
+        },
+        road: {
+          blockedRoleLine: "雨太大了，等雨停了再出去吧。",
+          blockedToast: "路面很滑，最好不要出去。",
+          endingRoleLine: "看起来，你改变了这场雨。",
+          endingToast: "云层散开了。",
+        },
+      },
+    };
+
+    const state = {
+      weatherTime: 0,
+      weatherStage: "thunder",
+      postureState: "standing",
+      hasTea: false,
+      hasDimmedLight: false,
+      hasOpenedPhoto: false,
+      hasClosedPhoto: false,
+      hasTouchedHydrangea: false,
+      chatUnlocked: false,
+      replyActive: false,
+      endingReached: false,
+      uiCleared: false,
+      sunnyFinalShown: false,
+      roadEnding: false,
+      bgOverride: null,
+      bgLoop: true,
+      activeBg: "A",
+      started: false,
+      audioEnabled: false,
+      lastClickAt: {},
+      hiddenPoints: {},
+      visiblePoints: new Set(INTERACTION_CONFIG.initialVisible),
+    };
+
+    const refs = {
+      stage: document.querySelector(".stage"),
+      bgA: document.getElementById("bgA"),
+      bgB: document.getElementById("bgB"),
+      entryGate: document.getElementById("entryGate"),
+      desc: document.getElementById("weatherDesc"),
+      toast: document.getElementById("toast"),
+      toastMessage: document.getElementById("toastMessage"),
+      toastBoost: document.getElementById("toastBoost"),
+      roleBubble: document.getElementById("roleBubble"),
+      selfBubble: document.getElementById("selfBubble"),
+      chat: document.getElementById("chat"),
+      chatInput: document.getElementById("chatInput"),
+      sendBtn: document.getElementById("sendBtn"),
+      steps: [...document.querySelectorAll(".weather-step")],
+      connectors: [...document.querySelectorAll(".connector")],
+    };
+
+    const actions = {
+      sitArea: {
+        cooldown: 0,
+        run() {
+          const copy = TEXT_CONFIG.actions.sitArea;
+          if (state.postureState === "sitting") return feedback(copy.repeatToast, 0, "");
+          state.postureState = "sitting";
+          showBubble(copy.roleLine);
+          return feedback(copy.toast, 10, copy.boost);
+        },
+      },
+      character: {
+        cooldown: 5,
+        run() {
+          const copy = TEXT_CONFIG.actions.character;
+          if (state.hasTea) {
+            state.chatUnlocked = true;
+            showBubble(copy.withTeaRoleLine);
+            return feedback(copy.withTeaToast, 1, copy.withTeaBoost);
+          }
+          if (state.postureState === "sitting") {
+            showBubble(copy.sittingRoleLine);
+            return feedback(copy.sittingToast, 1, copy.sittingBoost);
+          }
+          showBubble(copy.defaultRoleLine);
+          return feedback(copy.defaultToast, 1, copy.defaultBoost);
+        },
+      },
+      tea: {
+        cooldown: 0,
+        run() {
+          const copy = TEXT_CONFIG.actions.tea;
+          if (state.postureState !== "sitting") {
+            showBubble(copy.needSitRoleLine);
+            return feedback(copy.needSitToast, 0, "");
+          }
+          if (state.hasTea) {
+            showBubble(copy.repeatRoleLine);
+            return feedback(copy.repeatToast, 0, "");
+          }
+          state.hasTea = true;
+          state.chatUnlocked = true;
+          showBubble(copy.firstRoleLine);
+          return feedback(copy.firstToast, 5, copy.firstBoost);
+        },
+      },
+      windBell: {
+        cooldown: 5,
+        run() {
+          const copy = TEXT_CONFIG.actions.windBell;
+          showBubble(copy.roleLine);
+          return feedback(copy.toast, 1, copy.boost);
+        },
+      },
+      lamp: {
+        cooldown: 0,
+        run() {
+          const copy = TEXT_CONFIG.actions.lamp;
+          if (state.hasDimmedLight) return feedback(copy.repeatToast, 0, "");
+          state.hasDimmedLight = true;
+          showBubble(copy.roleLine);
+          return feedback(copy.toast, 1, copy.boost);
+        },
+      },
+      photo: {
+        cooldown: 0,
+        run() {
+          const copy = TEXT_CONFIG.actions.photo;
+          if (state.hasOpenedPhoto && !state.hasClosedPhoto) {
+            state.hasClosedPhoto = true;
+            showBubble(copy.closeRoleLine);
+            return feedback(copy.closeToast, 5, copy.closeBoost);
+          }
+          if (state.hasClosedPhoto) return feedback(copy.repeatToast, 0, "");
+          state.hasOpenedPhoto = true;
+          showBubble(copy.openRoleLine);
+          return feedback(copy.openToast, 1, copy.openBoost);
+        },
+      },
+      hydrangea: {
+        cooldown: 5,
+        run() {
+          const copy = TEXT_CONFIG.actions.hydrangea;
+          state.hasTouchedHydrangea = true;
+          showBubble(copy.roleLine);
+          return feedback(copy.toast, 1, copy.boost);
+        },
+      },
+      road: {
+        cooldown: 3,
+        run() {
+          const copy = TEXT_CONFIG.actions.road;
+          if (state.weatherTime < 180) {
+            showBubble(copy.blockedRoleLine);
+            return feedback(copy.blockedToast, 0, "");
+          }
+          state.roadEnding = true;
+          state.bgOverride = ROAD_BG.exitAnimation;
+          state.bgLoop = false;
+          state.weatherTime = Math.max(state.weatherTime, 300);
+          state.weatherStage = getStageId(state.weatherTime);
+          state.endingReached = true;
+          playRoadEndingVideo();
+          enterSunny();
+          return feedback(copy.endingToast, 0, "");
+        },
+      },
+    };
+
+    function getStageId(time) {
+      if (time >= 300) return "sunny";
+      if (time >= 180) return "cloudy";
+      if (time >= 60) return "lightRain";
+      return "thunder";
+    }
+
+    function getStageConfig(id) {
+      return STAGES.find((stage) => stage.id === id) || STAGES[0];
+    }
+
+    function getProgressSegments() {
+      const t = Math.min(state.weatherTime, 300);
+      return [
+        Math.min(Math.max(t / 60, 0), 1) * 100,
+        Math.min(Math.max((t - 60) / 120, 0), 1) * 100,
+        Math.min(Math.max((t - 180) / 120, 0), 1) * 100,
+      ];
+    }
+
+    function getBackgroundPath() {
+      if (state.bgOverride) return state.bgOverride;
+      const posture = state.postureState === "sitting" ? "sitting" : "standing";
+      return BG[state.weatherStage][posture];
+    }
+
+    function playVideo(video) {
+      const attempt = video.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+    }
+
+    function syncVideoAudio() {
+      [refs.bgA, refs.bgB].forEach((video) => {
+        video.muted = !state.audioEnabled;
+        video.volume = state.audioEnabled ? 0.85 : 0;
+      });
+    }
+
+    function prepareVideo(video, src, loop = true) {
+      if (video.getAttribute("src") !== src) {
+        video.src = src;
+        video.load();
+      }
+      video.loop = loop;
+      video.muted = !state.audioEnabled;
+      video.volume = state.audioEnabled ? 0.85 : 0;
+      video.playsInline = true;
+    }
+
+    function updateBackground(force = false, options = {}) {
+      const nextPath = getBackgroundPath();
+      const active = state.activeBg === "A" ? refs.bgA : refs.bgB;
+      const inactive = state.activeBg === "A" ? refs.bgB : refs.bgA;
+      const loop = options.loop ?? state.bgLoop;
+      const onEnded = options.onEnded || (
+        state.roadEnding && nextPath === ROAD_BG.exitAnimation
+          ? () => {
+            state.bgOverride = ROAD_BG.sunnyLoop;
+            state.bgLoop = true;
+            updateBackground(false, { loop: true });
+          }
+          : null
+      );
+      if (force) {
+        active.onended = null;
+        prepareVideo(active, nextPath, loop);
+        active.currentTime = 0;
+        active.classList.add("active");
+        if (state.started) playVideo(active);
+        if (onEnded) active.onended = onEnded;
+        return;
+      }
+      if (!force && active.getAttribute("src") === nextPath) return;
+      inactive.onended = null;
+      prepareVideo(inactive, nextPath, loop);
+      inactive.onloadeddata = () => {
+        inactive.onloadeddata = null;
+        inactive.currentTime = 0;
+        if (state.started) playVideo(inactive);
+        inactive.classList.add("active");
+        active.classList.remove("active");
+        setTimeout(() => {
+          if (!active.classList.contains("active")) active.pause();
+        }, 3000);
+        state.activeBg = state.activeBg === "A" ? "B" : "A";
+        if (onEnded) inactive.onended = onEnded;
+      };
+      if (inactive.readyState >= 2) inactive.onloadeddata();
+    }
+
+    function playRoadEndingVideo() {
+      state.bgOverride = ROAD_BG.exitAnimation;
+      state.bgLoop = false;
+      updateBackground(false, { loop: false });
+    }
+
+    function render() {
+      const stage = getStageConfig(state.weatherStage);
+      const isClear = state.uiCleared;
+      refs.stage.classList.toggle("clear", isClear);
+      if (isClear) {
+        refs.toast.classList.remove("show");
+        refs.roleBubble.classList.remove("show");
+        refs.selfBubble.classList.remove("show");
+      }
+      refs.desc.textContent = stage.desc;
+      refs.steps.forEach((step) => {
+        const stepStage = step.dataset.stage;
+        const stepMin = getStageConfig(stepStage).min;
+        step.classList.toggle("active", stepStage === state.weatherStage);
+        step.classList.toggle("visited", state.weatherTime >= stepMin);
+      });
+      getProgressSegments().forEach((fill, index) => {
+        refs.connectors[index].style.setProperty("--fill", fill.toFixed(2));
+      });
+      refs.chat.classList.toggle("locked", !state.chatUnlocked);
+      refs.chat.classList.toggle("replying", state.replyActive);
+      refs.chatInput.disabled = !state.chatUnlocked || state.replyActive;
+      document.querySelectorAll(".interaction-point").forEach((point) => {
+        const id = point.dataset.action;
+        const isPermanentlyHidden = id === "sitArea" && state.postureState === "sitting";
+        point.classList.toggle(
+          "hidden",
+          isPermanentlyHidden || Boolean(state.hiddenPoints[id]) || !state.visiblePoints.has(id)
+        );
+      });
+      updateBackground();
+    }
+
+    function isPointPermanentlyHidden(id) {
+      return id === "sitArea" && state.postureState === "sitting";
+    }
+
+    function getInteractionIds() {
+      return [...document.querySelectorAll(".interaction-point")].map((point) => point.dataset.action);
+    }
+
+    function getVisiblePointCount() {
+      return getInteractionIds().filter((id) => state.visiblePoints.has(id) && !state.hiddenPoints[id] && !isPointPermanentlyHidden(id)).length;
+    }
+
+    function getAvailablePointIds(exclude = []) {
+      const excluded = new Set(exclude);
+      return getInteractionIds().filter((id) => {
+        return !excluded.has(id)
+          && !state.visiblePoints.has(id)
+          && !state.hiddenPoints[id]
+          && !isPointPermanentlyHidden(id);
+      });
+    }
+
+    function revealOnePoint(exclude = []) {
+      if (getVisiblePointCount() >= INTERACTION_CONFIG.maxVisible) return;
+      const candidates = getAvailablePointIds(exclude);
+      if (!candidates.length) return;
+      const next = candidates[Math.floor(Math.random() * candidates.length)];
+      state.visiblePoints.add(next);
+    }
+
+    function replenishVisiblePoints(exclude = []) {
+      while (getVisiblePointCount() < INTERACTION_CONFIG.maxVisible) {
+        const before = getVisiblePointCount();
+        revealOnePoint(exclude);
+        if (getVisiblePointCount() === before) break;
+      }
+    }
+
+    function enterSunny() {
+      if (state.sunnyFinalShown) return;
+      state.endingReached = true;
+      state.sunnyFinalShown = true;
+      render();
+      showBubble(state.roadEnding ? TEXT_CONFIG.actions.road.endingRoleLine : TEXT_CONFIG.ending.sunnyRoleLine, {
+        speaker: "role",
+        duration: 5000,
+        onHide: () => {
+          state.uiCleared = true;
+          state.replyActive = false;
+          render();
+        },
+      });
+    }
+
+    function advanceTime(delta, sourceToast) {
+      if (delta === 0) return;
+      const before = state.weatherStage;
+      state.weatherTime = Math.min(300, Math.max(0, state.weatherTime + delta));
+      state.weatherStage = getStageId(state.weatherTime);
+      if (state.weatherStage !== before) {
+        if (state.weatherStage !== "sunny") {
+          const stage = getStageConfig(state.weatherStage);
+          showToast(stage.enter, "", true);
+        } else {
+          state.bgOverride = null;
+          state.bgLoop = true;
+          enterSunny();
+        }
+      } else if (sourceToast) {
+        showToast(sourceToast.message, sourceToast.boost);
+      }
+      render();
+    }
+
+    let toastTimer;
+    function showToast(message, boost, sticky = false) {
+      refs.toastMessage.textContent = message;
+      refs.toastBoost.textContent = boost || "";
+      refs.toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => refs.toast.classList.remove("show"), sticky ? 2600 : 2200);
+    }
+
+    const bubbleTimers = {
+      role: null,
+      self: null,
+    };
+
+    function showBubble(text, options = {}) {
+      if (state.uiCleared) return;
+      const speaker = options.speaker === "self" ? "self" : "role";
+      const target = speaker === "self" ? refs.selfBubble : refs.roleBubble;
+      target.textContent = text;
+      target.classList.add("show");
+      clearTimeout(bubbleTimers[speaker]);
+      bubbleTimers[speaker] = setTimeout(() => {
+        target.classList.remove("show");
+        if (options.onHide) options.onHide();
+      }, options.duration || 5000);
+    }
+
+    function feedback(message, addTime, boost) {
+      if (addTime > 0) {
+        advanceTime(addTime, { message, boost });
+      } else {
+        showToast(message, boost);
+        render();
+      }
+    }
+
+    function canRunAction(id, cooldown) {
+      const now = Date.now();
+      const last = state.lastClickAt[id] || 0;
+      if (cooldown && now - last < cooldown * 1000) return false;
+      state.lastClickAt[id] = now;
+      return true;
+    }
+
+    function temporarilyHidePoint(id) {
+      state.visiblePoints.delete(id);
+      if (id === "sitArea") {
+        replenishVisiblePoints([id]);
+        return;
+      }
+      state.hiddenPoints[id] = true;
+      replenishVisiblePoints([id]);
+      render();
+      setTimeout(() => {
+        state.hiddenPoints[id] = false;
+        replenishVisiblePoints();
+        render();
+      }, INTERACTION_CONFIG.reuseDelay);
+    }
+
+    document.querySelectorAll(".interaction-point").forEach((point) => {
+      point.addEventListener("click", () => {
+        const id = point.dataset.action;
+        const action = actions[id];
+        if (!state.started) return;
+        if (state.weatherStage === "sunny") return;
+        if (!action) return;
+        if (!state.visiblePoints.has(id)) return;
+        if (!canRunAction(id, action.cooldown)) {
+          showToast(TEXT_CONFIG.ui.cooldownToast, "");
+          return;
+        }
+        action.run();
+        temporarilyHidePoint(id);
+        render();
+      });
+    });
+
+    refs.sendBtn.addEventListener("click", () => {
+      if (!state.started) return;
+      if (!state.chatUnlocked) {
+        return;
+      }
+      if (state.weatherStage === "sunny") return;
+      const value = refs.chatInput.value.trim();
+      if (!value) {
+        showBubble(TEXT_CONFIG.ui.emptyInputHint);
+        return;
+      }
+      refs.chatInput.value = "";
+      state.replyActive = true;
+      render();
+      showBubble(value, {
+        speaker: "self",
+        duration: 5000,
+        onHide: () => {
+          state.replyActive = false;
+          render();
+        },
+      });
+      advanceTime(10, { message: TEXT_CONFIG.ui.chatSendToast, boost: TEXT_CONFIG.ui.chatSendBoost });
+    });
+
+    refs.chatInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") refs.sendBtn.click();
+    });
+
+    function getActiveVideo() {
+      return state.activeBg === "A" ? refs.bgA : refs.bgB;
+    }
+
+    function startExperience() {
+      if (state.started) return;
+      state.started = true;
+      state.audioEnabled = true;
+      syncVideoAudio();
+      refs.stage.classList.add("entered");
+      refs.entryGate.disabled = true;
+      playVideo(getActiveVideo());
+    }
+
+    refs.entryGate.addEventListener("click", startExperience);
+
+    setInterval(() => {
+      if (!state.started) return;
+      if (state.weatherTime >= 300) return;
+      const before = state.weatherStage;
+      state.weatherTime = Math.min(300, state.weatherTime + DEMO_SPEED);
+      state.weatherStage = getStageId(state.weatherTime);
+      if (state.weatherStage !== before) {
+        const stage = getStageConfig(state.weatherStage);
+        if (state.weatherStage !== "sunny") {
+          showToast(stage.enter, "");
+        } else {
+          state.bgOverride = null;
+          state.bgLoop = true;
+          enterSunny();
+        }
+      }
+      render();
+    }, 1000);
+
+    state.weatherStage = getStageId(state.weatherTime);
+    updateBackground(true);
+    render();
+  </script>
+</body>
+</html>
