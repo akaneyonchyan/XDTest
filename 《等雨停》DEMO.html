@@ -1164,18 +1164,23 @@
       });
     }
 
+    function revealPoint(id) {
+      if (!id || state.visiblePoints.has(id) || state.hiddenPoints[id] || isPointPermanentlyHidden(id)) return;
+      state.visiblePoints.add(id);
+      state.appearingPoints[id] = true;
+      setTimeout(() => {
+        delete state.appearingPoints[id];
+        render();
+      }, 2000);
+      render();
+    }
+
     function revealOnePoint(exclude = []) {
       if (getVisiblePointCount() >= INTERACTION_CONFIG.maxVisible) return;
       const candidates = getAvailablePointIds(exclude);
       if (!candidates.length) return;
       const next = candidates[Math.floor(Math.random() * candidates.length)];
-      state.visiblePoints.add(next);
-      state.appearingPoints[next] = true;
-      setTimeout(() => {
-        delete state.appearingPoints[next];
-        render();
-      }, 2000);
-      render();
+      revealPoint(next);
     }
 
     function replenishVisiblePoints(exclude = []) {
@@ -1282,8 +1287,12 @@
       render();
       setTimeout(() => {
         if (id === "sitArea") return;
-        state.hiddenPoints[id] = false;
-        render();
+        delete state.hiddenPoints[id];
+        if (!state.uiCleared && state.weatherStage !== "sunny" && getVisiblePointCount() < INTERACTION_CONFIG.maxVisible) {
+          revealPoint(id);
+        } else {
+          render();
+        }
       }, INTERACTION_CONFIG.reuseDelay);
     }
 
